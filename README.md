@@ -1,4 +1,4 @@
-# Helper Scripts for Submodule Management
+# Helper Scripts for Git Submodule Management
 
 Using git submodules is a good idea in theory. However, there are some pain
 points in practice:
@@ -50,6 +50,12 @@ the git branch. You can choose to use the latest default branch via the
 
 After the sources are copied, you can apply a git patch file using the `--patch`
 option.
+
+To copy repositories from GitLab, prefix the repo with `gitlab:`:
+
+```sh
+python3 partial.py -v gitlab:libeigen/eigen LICENSE "Eigen/**"
+```
 
 
 ## GitHub Actions Configuration

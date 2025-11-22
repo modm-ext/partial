@@ -16,12 +16,29 @@ LOGGER = logging.getLogger("partial")
 
 
 def latest_release_tag(repo: str) -> str:
-    """Returns the latest release tag of the repo."""
+    """
+    Returns the latest release tag of the repo.
+    :param repo: Repository in the format 'owner/repo' or 'gitlab:owner/repo'.
+    """
+    host, path = repo.split(":", 1) if ":" in repo else ("github", repo)
+    if host == "github":
+        release_path = f"https://api.github.com/repos/{path}/releases/latest"
+        tag_path = f"https://api.github.com/repos/{path}/tags"
+    elif host == "gitlab":
+        path = urllib.parse.quote_plus(path)
+        release_path = f"https://gitlab.com/api/v4/projects/{path}/releases"
+        tag_path = f"https://gitlab.com/api/v4/projects/{path}/repository/tags"
+    else:
+        raise ValueError(f"Unsupported host: {host}")
+
     try:
-        with urllib.request.urlopen(f"https://api.github.com/repos/{repo}/releases/latest") as response:
-            return json.loads(response.read())["tag_name"]
+        with urllib.request.urlopen(release_path) as response:
+            if isinstance(releases := json.loads(response.read()), list):
+                releases = releases[0]
+            return releases["tag_name"]
+
     except urllib.error.HTTPError:
-        with urllib.request.urlopen(f"https://api.github.com/repos/{repo}/tags") as response:
+        with urllib.request.urlopen(tag_path) as response:
             tags = [tag["name"] for tag in json.loads(response.read())]
             tags.sort(key=lambda v: tuple(map(int, re.findall(r"\d+", v))))
             return tags[-1]
@@ -30,18 +47,19 @@ def latest_release_tag(repo: str) -> str:
 def clone_repo(repo: str, dest: Path, branch: str = None, overwrite: bool = True):
     """
     Clones a GitHub repository of a branch to the specified destination.
-    :param repo: GitHub repository in the format 'owner/repo'.
+    :param repo: Repository in the format 'owner/repo' or 'gitlab:owner/repo'.
     :param dest: Destination path where the repository will be cloned.
     :param branch: Branch to clone. If None, the default branch is used.
     :param overwrite: If True, the destination directory will be removed if it exists.
     """
     if not overwrite and dest.exists():
         return
+    host, path = repo.split(":", 1) if ":" in repo else ("github", repo)
     shutil.rmtree(dest, ignore_errors=True)
     LOGGER.info("Cloning {}{}...".format(repo, "" if branch is None else f" at branch '{branch}'"))
     branch = "" if branch is None else f"--branch {branch}"
     subprocess.check_call("GIT_LFS_SKIP_SMUDGE=1 git -c advice.detachedHead=false clone --depth=1 "
-                          f"{branch} https://github.com/{repo}.git {dest}", shell=True)
+                          f"{branch} https://{host}.com/{path}.git {dest}", shell=True)
 
 
 def copy_files(src: Path, patterns: list[str], dest: Path = None,
