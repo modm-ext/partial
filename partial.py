@@ -22,7 +22,7 @@ def latest_release_tag(repo: str) -> str:
     """
     host, path = repo.split(":", 1) if ":" in repo else ("github", repo)
     if host == "github":
-        release_path = f"https://api.github.com/repos/{path}/releases/latest"
+        release_path = f"https://api.github.com/repos/{path}/releases"
         tag_path = f"https://api.github.com/repos/{path}/tags"
     elif host == "gitlab":
         path = urllib.parse.quote_plus(path)
@@ -31,17 +31,18 @@ def latest_release_tag(repo: str) -> str:
     else:
         raise ValueError(f"Unsupported host: {host}")
 
+    # Pick the highest version, not the most recently published one, since
+    # maintenance releases of older versions may be published later.
+    version = lambda v: tuple(map(int, re.findall(r"\d+", v)))
     try:
         with urllib.request.urlopen(release_path) as response:
-            if isinstance(releases := json.loads(response.read()), list):
-                releases = releases[0]
-            return releases["tag_name"]
-
+            releases = [r["tag_name"] for r in json.loads(response.read())
+                        if not r.get("prerelease") and not r.get("draft")]
+            if releases: return max(releases, key=version)
     except urllib.error.HTTPError:
-        with urllib.request.urlopen(tag_path) as response:
-            tags = [tag["name"] for tag in json.loads(response.read())]
-            tags.sort(key=lambda v: tuple(map(int, re.findall(r"\d+", v))))
-            return tags[-1]
+        pass
+    with urllib.request.urlopen(tag_path) as response:
+        return max((tag["name"] for tag in json.loads(response.read())), key=version)
 
 
 def clone_repo(repo: str, dest: Path, branch: str = None, overwrite: bool = True):
