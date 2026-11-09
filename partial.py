@@ -114,6 +114,7 @@ def copy_files(src: Path, patterns: list[str], dest: Path = None,
                 with (fsrc.open("r", newline=None, encoding="utf-8", errors="replace") as rfile,
                       fdest.open("w", encoding="utf-8") as wfile):
                     wfile.writelines(modifier(l.rstrip())+"\n" for l in rfile.readlines())
+                shutil.copymode(fsrc, fdest)  # keep executables executable
             files.append(fdest)
 
     assert files, "No files copied!"
